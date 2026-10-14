@@ -2,13 +2,14 @@ name: Desktop
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   desktop:
     runs-on: ubuntu-latest
     steps:
       - name: Start Docker
-        background: true
         run: |
           docker run -d \
             --network host \
@@ -16,11 +17,18 @@ jobs:
             --shm-size=1gb \
             --restart unless-stopped \
             -e CUSTOM_USER=admin \
-            -e PASSWORD=${{ secrets.DESKTOP_PASSWORD }} \
+            -e PASSWORD=Lx0fc698f9-17z \
             ghcr.io/linuxserver/webtop
 
-      - name: Desktop URL
+      - name: Install cloudflared
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared-linux-amd64.deb >/dev/null 2>&1
-          cloudflared tunnel --url http://localhost:3000
+
+      - name: Expose desktop and print URL
+        run: |
+          cloudflared tunnel --url http://localhost:3000 2>&1 | tee /tmp/tunnel.log
+
+      - name: URL
+        if: always()
+        run: grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/tunnel.log || true
