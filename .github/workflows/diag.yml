@@ -4,26 +4,33 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       - name: Restore
         uses: actions/cache/restore@v4
         with:
           path: state
-          key: diag-${{ github.run_id }}
+          key: diag2-${{ github.run_id }}
           restore-keys: |
             webtop-state-
-      - name: Diagnose
+      - name: Inspect tarball
         run: |
-          echo "### state dir:"; ls -la state
-          echo "### tar listing (first 30):"; tar tzf state/config.tar.gz 2>&1 | head -30; echo "LIST_EXIT=$?"
-          echo "### disk:"; df -h /
-          mkdir -p config
-          echo "### extracting:"
-          tar xzf state/config.tar.gz -C config --no-same-owner 2>&1 | tail -20; echo "TAR_EXIT=${PIPESTATUS[0]}"
-          echo "### result:"; ls -la config | head -20; du -sh config
-          echo "### docker run:"
-          docker run -d --name webtop --network host --security-opt seccomp=unconfined --shm-size=1gb --restart unless-stopped -v "$PWD/config:/config" -e CUSTOM_USER=admin -e PASSWORD=Lx0fc698f9-17z ghcr.io/linuxserver/webtop; echo "RUN_EXIT=$?"
-          sleep 15
-          docker ps -a --filter name=webtop
-          echo "### container logs:"; docker logs webtop 2>&1 | tail -40
+          ls -la state/
+          echo "=== SIZE ==="
+          du -b state/config.tar.gz
+          echo "=== FILE TYPE ==="
+          file state/config.tar.gz
+          echo "=== GZIP INTEGRITY ==="
+          gzip -t state/config.tar.gz && echo "gzip OK" || echo "gzip CORRUPT"
+          echo "=== ENTRY COUNT ==="
+          tar tzf state/config.tar.gz > /tmp/list.txt 2>/tmp/err.txt; echo "tar_exit=$?"
+          wc -l /tmp/list.txt
+          echo "=== FIRST 25 ENTRIES ==="
+          head -25 /tmp/list.txt
+          echo "=== STDERR ==="
+          head -10 /tmp/err.txt
+          echo "=== EXTRACT AND LOOK ==="
+          rm -rf out; mkdir -p out
+          tar xzf state/config.tar.gz -C out
+          echo "extracted:"; find out -maxdepth 3 | head -30
+          echo "total files:"; find out -type f | wc -l
