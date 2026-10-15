@@ -26,19 +26,22 @@ jobs:
         run: |
           mkdir -p config
           {
-            echo "=== RUN ${{ github.run_id }} ==="
+            echo "=== THIS RUN: ${{ github.run_id }} ==="
             if [ -f state/config.tar.gz ]; then
               tar xzf state/config.tar.gz -C config --no-same-owner
               rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache config/.XDG config/.ICEauthority
               find config -name '*.lock' -delete 2>/dev/null || true
               sudo chown -R "$UID_NUM:$GID_NUM" config
               sudo chmod -R u+rwX config
-              FILES=$(find config -type f | wc -l)
-              echo "STATE: RESTORED ($FILES files, ownership fixed)"
-              echo "MARKER-FROM-PREVIOUS-RUN: $(cat config/.session-marker 2>/dev/null || echo NONE)"
+              echo "STATE: RESTORED ($(find config -type f | wc -l) files)"
+              echo "MARKER-FROM-PREV-RUN: $(cat config/.session-marker 2>/dev/null || echo NONE)"
+              echo "DESKTOP-FROM-PREV-RUN: $(tr '\n' ' ' < state/desktop.txt 2>/dev/null || echo NONE)"
+              echo "HOME-FILES-FROM-PREV-RUN: $(find config -maxdepth 2 -type d -not -path '*/.config*' -not -path '*/.cache*' 2>/dev/null | head -14 | tr '\n' ' ')"
             else
               echo "STATE: FRESH (no cache)"
-              echo "MARKER-FROM-PREVIOUS-RUN: NONE"
+              echo "MARKER-FROM-PREV-RUN: NONE"
+              echo "DESKTOP-FROM-PREV-RUN: NONE"
+              echo "HOME-FILES-FROM-PREV-RUN: NONE"
             fi
           } | tee /tmp/status.txt
           docker run -d \
@@ -54,13 +57,12 @@ jobs:
             -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
             ghcr.io/linuxserver/webtop
           sleep 80
-          HEALTH=$(docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "XFCE-SESSION: RUNNING" || echo "XFCE-SESSION: DEAD"' 2>/dev/null || echo "XFCE-SESSION: UNKNOWN")
-          echo "$HEALTH" | tee -a /tmp/status.txt
+          docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "XFCE-SESSION: RUNNING" || echo "XFCE-SESSION: DEAD"' | tee -a /tmp/status.txt || true
 
       - name: Reinstall saved packages
         run: |
           if [ ! -f state/packages.txt ]; then
-            echo "no package list - nothing to replay"
+            echo "no package list"
             exit 0
           fi
           NAMES=$(sed 's/-[^\-]*$//' state/packages.txt | grep -v '^$' | tr '\n' ' ')
@@ -99,11 +101,13 @@ jobs:
         run: |
           sleep 900
           mkdir -p state
-          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} checkpoint-A $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
+          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} ckpt-A $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
           docker exec webtop tar czf /tmp/cfg.tar.gz -C /config .
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
           docker cp webtop:/tmp/pkgs.txt state/packages.txt || true
+          docker exec webtop sh -c 'ls -A /config/Desktop > /tmp/desktop.txt 2>/dev/null || true'
+          docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
 
       - uses: actions/cache/save@v4
         if: always()
@@ -123,11 +127,13 @@ jobs:
       - name: Snapshot C
         if: always()
         run: |
-          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} checkpoint-C $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
+          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} ckpt-C $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
           docker exec webtop tar czf /tmp/cfg.tar.gz -C /config .
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
           docker cp webtop:/tmp/pkgs.txt state/packages.txt || true
+          docker exec webtop sh -c 'ls -A /config/Desktop > /tmp/desktop.txt 2>/dev/null || true'
+          docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - name: wait
         if: always()
         run: sleep 7200
@@ -145,6 +151,8 @@ jobs:
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
           docker cp webtop:/tmp/pkgs.txt state/packages.txt || true
+          docker exec webtop sh -c 'ls -A /config/Desktop > /tmp/desktop.txt 2>/dev/null || true'
+          docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - name: wait
         if: always()
         run: sleep 4800
