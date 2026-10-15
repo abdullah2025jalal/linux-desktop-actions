@@ -30,28 +30,28 @@ jobs:
             echo "FRESH-no-cache-found" > /tmp/status.txt
             echo "### No saved state yet - starting fresh" >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [ -f state/packages.txt ]; then
-            docker run -d --name boot -v "$PWD/config:/config" \
-              -e CUSTOM_USER=admin ghcr.io/linuxserver/webtop >/dev/null
-            sleep 20
-            docker cp state/packages.txt boot:/tmp/pkgs.txt
-            docker exec boot sh -c 'sed "s/-[^-]*$//" /tmp/pkgs.txt | grep -v "^$" | xargs apk add --no-cache >/dev/null 2>&1 || true'
-            docker commit boot webtop-restored >/dev/null
-            docker rm -f boot >/dev/null
-            docker run -d --name webtop --network host \
-              --security-opt seccomp=unconfined --shm-size=1gb --restart unless-stopped \
-              -v "$PWD/config:/config" \
-              -e CUSTOM_USER=admin \
-              -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
-              webtop-restored
-          else
-            docker run -d --name webtop --network host \
-              --security-opt seccomp=unconfined --shm-size=1gb --restart unless-stopped \
-              -v "$PWD/config:/config" \
-              -e CUSTOM_USER=admin \
-              -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
-              ghcr.io/linuxserver/webtop
+          docker run -d \
+            --name webtop \
+            --network host \
+            --security-opt seccomp=unconfined \
+            --shm-size=1gb \
+            --restart unless-stopped \
+            -v "$PWD/config:/config" \
+            -e CUSTOM_USER=admin \
+            -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
+            ghcr.io/linuxserver/webtop
+
+      - name: Reinstall saved packages
+        run: |
+          if [ ! -f state/packages.txt ]; then
+            echo "no package list, nothing to reinstall"
+            exit 0
           fi
+          sleep 45
+          docker cp state/packages.txt webtop:/tmp/pkgs.txt
+          COUNT=$(grep -vc '^$' state/packages.txt || true)
+          echo "replaying $COUNT packages into the live container"
+          docker exec webtop sh -c 'sed "s/-[^\-]*$//" /tmp/pkgs.txt | grep -v "^$" | xargs apk add --no-cache 2>&1 | tail -5 || true'
 
       - name: Install cloudflared
         run: |
@@ -91,7 +91,6 @@ jobs:
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
           docker cp webtop:/tmp/pkgs.txt state/packages.txt || true
-          du -h state/config.tar.gz 2>/dev/null || true
 
       - uses: actions/cache/save@v4
         if: always()
