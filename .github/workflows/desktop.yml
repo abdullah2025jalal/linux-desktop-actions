@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 360
     steps:
       - name: Restore saved state
+        id: restore
         uses: actions/cache/restore@v4
         with:
           path: state
@@ -23,10 +24,10 @@ jobs:
           mkdir -p config
           if [ -f state/config.tar.gz ]; then
             tar xzf state/config.tar.gz -C config
-            echo "restored /config"
+            echo "RESTORED-from-$(ls -1 state | tr '\n' ' ')" > /tmp/status.txt
             echo "### State restored from previous run" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "no saved state, starting fresh"
+            echo "FRESH-no-cache-found" > /tmp/status.txt
             echo "### No saved state yet - starting fresh" >> "$GITHUB_STEP_SUMMARY"
           fi
           if [ -f state/packages.txt ]; then
@@ -69,6 +70,7 @@ jobs:
           done
           [ -z "$URL" ] && { echo "::error::no tunnel URL"; exit 1; }
           echo "$URL" > /tmp/url.txt
+          cat /tmp/status.txt >> /tmp/url.txt
           echo "### Linux desktop is live" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "$URL" >> "$GITHUB_STEP_SUMMARY"
