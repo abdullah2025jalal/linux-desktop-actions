@@ -4,41 +4,32 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
     steps:
       - name: Restore
         uses: actions/cache/restore@v4
         with:
           path: state
-          key: diag3-${{ github.run_id }}
+          key: diag4-${{ github.run_id }}
           restore-keys: |
             webtop-state-
-      - name: Compare fresh vs restored
+      - name: Test ownership fix
         run: |
-          check() {
-            echo "----- $1 -----"
-            docker exec $2 ps -eo comm 2>/dev/null | grep -Ei 'Xvfb|Xvnc|x11vnc|xfce|selkies|fluxbox|openbox|pixelflux|audio' | sort | tr '\n' ' '; echo
-            echo "port3000: $(docker exec $2 sh -c 'wget -qO- --timeout=5 http://localhost:3000/ >/dev/null 2>&1 && echo SERVES || echo DEAD')"
-            echo "--- last logs ---"
-            docker logs --tail 12 $2 2>&1 | sed 's/^/   /'
-          }
-
-          echo "############ TEST A: FRESH (no restored config) ############"
-          docker run -d --name fresh --network host --security-opt seccomp=unconfined --shm-size=1gb -e CUSTOM_USER=admin -e PASSWORD=x ghcr.io/linuxserver/webtop >/dev/null
-          sleep 60
-          check FRESH fresh
-          docker rm -f fresh >/dev/null
-
-          echo ""
-          echo "############ TEST B: WITH RESTORED CONFIG ############"
           mkdir -p config
           tar xzf state/config.tar.gz -C config --no-same-owner
-          rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache
+          rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache config/.XDG config/.ICEauthority
           find config -name '*.lock' -delete 2>/dev/null || true
-          echo "config tree (top):"; ls -la config | sed 's/^/   /'
-          echo "dconf/user present: $(test -f config/.config/dconf/user && echo YES || echo NO)"
-          docker run -d --name rest --network host --security-opt seccomp=unconfined --shm-size=1gb -v "$PWD/config:/config" -e CUSTOM_USER=admin -e PASSWORD=x ghcr.io/linuxserver/webtop >/dev/null
-          sleep 60
-          check RESTORED rest
-          echo "--- ownership inside /config ---"
-          docker exec rest sh -c 'ls -lan /config | head -12' | sed 's/^/   /'
+          echo "BEFORE chown:"; ls -lan config | head -8 | sed 's/^/   /'
+          sudo chown -R 911:911 config
+          sudo chmod -R u+rwX config
+          echo "AFTER chown:"; ls -lan config | head -8 | sed 's/^/   /'
+          docker run -d --name fix --network host --security-opt seccomp=unconfined --shm-size=1gb \
+            -v "$PWD/config:/config" -e CUSTOM_USER=admin -e PASSWORD=x -e PUID=911 -e PGID=911 \
+            ghcr.io/linuxserver/webtop >/dev/null
+          sleep 75
+          echo "=== desktop processes ==="
+          docker exec fix ps -eo comm | grep -Ei 'Xvfb|selkies|xfce|openbox' | sort | tr '\n' ' '; echo
+          echo "=== xfce4-session running? ==="
+          docker exec fix sh -c 'pgrep -x xfce4-session >/dev/null && echo "YES - DESKTOP UP" || echo "NO - STILL BROKEN"'
+          echo "=== logs ==="
+          docker logs --tail 6 fix 2>&1 | sed 's/^/   /'
