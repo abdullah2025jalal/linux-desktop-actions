@@ -1,0 +1,29 @@
+name: Diag
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Restore
+        uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: diag-${{ github.run_id }}
+          restore-keys: |
+            webtop-state-
+      - name: Diagnose
+        run: |
+          echo "### state dir:"; ls -la state
+          echo "### tar listing (first 30):"; tar tzf state/config.tar.gz 2>&1 | head -30; echo "LIST_EXIT=$?"
+          echo "### disk:"; df -h /
+          mkdir -p config
+          echo "### extracting:"
+          tar xzf state/config.tar.gz -C config --no-same-owner 2>&1 | tail -20; echo "TAR_EXIT=${PIPESTATUS[0]}"
+          echo "### result:"; ls -la config | head -20; du -sh config
+          echo "### docker run:"
+          docker run -d --name webtop --network host --security-opt seccomp=unconfined --shm-size=1gb --restart unless-stopped -v "$PWD/config:/config" -e CUSTOM_USER=admin -e PASSWORD=Lx0fc698f9-17z ghcr.io/linuxserver/webtop; echo "RUN_EXIT=$?"
+          sleep 15
+          docker ps -a --filter name=webtop
+          echo "### container logs:"; docker logs webtop 2>&1 | tail -40
