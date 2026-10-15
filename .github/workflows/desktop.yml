@@ -9,6 +9,9 @@ jobs:
   desktop:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      UID_NUM: '911'
+      GID_NUM: '911'
     steps:
       - name: Restore saved state
         id: restore
@@ -24,10 +27,12 @@ jobs:
           mkdir -p config
           if [ -f state/config.tar.gz ]; then
             tar xzf state/config.tar.gz -C config --no-same-owner
-            rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache
+            rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache config/.XDG config/.ICEauthority
             find config -name '*.lock' -delete 2>/dev/null || true
+            sudo chown -R "$UID_NUM:$GID_NUM" config
+            sudo chmod -R u+rwX config
             FILES=$(find config -type f | wc -l)
-            echo "RESTORED ($FILES files)" > /tmp/status.txt
+            echo "RESTORED ($FILES files, ownership fixed)" > /tmp/status.txt
             echo "### Restored $FILES files from previous run" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "FRESH (no cache)" > /tmp/status.txt
@@ -41,10 +46,12 @@ jobs:
             --restart unless-stopped \
             -v "$PWD/config:/config" \
             -e CUSTOM_USER=admin \
+            -e PUID=$UID_NUM \
+            -e PGID=$GID_NUM \
             -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
             ghcr.io/linuxserver/webtop
-          sleep 8
-          docker ps --filter name=webtop --format '{{.Names}} {{.Status}}'
+          sleep 75
+          docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "DESKTOP OK" || echo "DESKTOP MISSING"' || true
 
       - name: Reinstall saved packages
         run: |
@@ -52,10 +59,8 @@ jobs:
             echo "no package list - nothing to replay"
             exit 0
           fi
-          sleep 40
-          docker cp state/packages.txt webtop:/tmp/pkgs.txt
           NAMES=$(sed 's/-[^\-]*$//' state/packages.txt | grep -v '^$' | tr '\n' ' ')
-          echo "replaying: $NAMES" | head -c 400; echo
+          docker cp state/packages.txt webtop:/tmp/pkgs.txt
           docker exec webtop sh -c "apk add --no-cache $NAMES 2>&1 | tail -3 || true"
 
       - name: Install cloudflared
