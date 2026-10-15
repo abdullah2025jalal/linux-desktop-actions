@@ -4,33 +4,41 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - name: Restore
         uses: actions/cache/restore@v4
         with:
           path: state
-          key: diag2-${{ github.run_id }}
+          key: diag3-${{ github.run_id }}
           restore-keys: |
             webtop-state-
-      - name: Inspect tarball
+      - name: Compare fresh vs restored
         run: |
-          ls -la state/
-          echo "=== SIZE ==="
-          du -b state/config.tar.gz
-          echo "=== FILE TYPE ==="
-          file state/config.tar.gz
-          echo "=== GZIP INTEGRITY ==="
-          gzip -t state/config.tar.gz && echo "gzip OK" || echo "gzip CORRUPT"
-          echo "=== ENTRY COUNT ==="
-          tar tzf state/config.tar.gz > /tmp/list.txt 2>/tmp/err.txt; echo "tar_exit=$?"
-          wc -l /tmp/list.txt
-          echo "=== FIRST 25 ENTRIES ==="
-          head -25 /tmp/list.txt
-          echo "=== STDERR ==="
-          head -10 /tmp/err.txt
-          echo "=== EXTRACT AND LOOK ==="
-          rm -rf out; mkdir -p out
-          tar xzf state/config.tar.gz -C out
-          echo "extracted:"; find out -maxdepth 3 | head -30
-          echo "total files:"; find out -type f | wc -l
+          check() {
+            echo "----- $1 -----"
+            docker exec $2 ps -eo comm 2>/dev/null | grep -Ei 'Xvfb|Xvnc|x11vnc|xfce|selkies|fluxbox|openbox|pixelflux|audio' | sort | tr '\n' ' '; echo
+            echo "port3000: $(docker exec $2 sh -c 'wget -qO- --timeout=5 http://localhost:3000/ >/dev/null 2>&1 && echo SERVES || echo DEAD')"
+            echo "--- last logs ---"
+            docker logs --tail 12 $2 2>&1 | sed 's/^/   /'
+          }
+
+          echo "############ TEST A: FRESH (no restored config) ############"
+          docker run -d --name fresh --network host --security-opt seccomp=unconfined --shm-size=1gb -e CUSTOM_USER=admin -e PASSWORD=x ghcr.io/linuxserver/webtop >/dev/null
+          sleep 60
+          check FRESH fresh
+          docker rm -f fresh >/dev/null
+
+          echo ""
+          echo "############ TEST B: WITH RESTORED CONFIG ############"
+          mkdir -p config
+          tar xzf state/config.tar.gz -C config --no-same-owner
+          rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache
+          find config -name '*.lock' -delete 2>/dev/null || true
+          echo "config tree (top):"; ls -la config | sed 's/^/   /'
+          echo "dconf/user present: $(test -f config/.config/dconf/user && echo YES || echo NO)"
+          docker run -d --name rest --network host --security-opt seccomp=unconfined --shm-size=1gb -v "$PWD/config:/config" -e CUSTOM_USER=admin -e PASSWORD=x ghcr.io/linuxserver/webtop >/dev/null
+          sleep 60
+          check RESTORED rest
+          echo "--- ownership inside /config ---"
+          docker exec rest sh -c 'ls -lan /config | head -12' | sed 's/^/   /'
