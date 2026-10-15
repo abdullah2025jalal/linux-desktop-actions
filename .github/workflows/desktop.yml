@@ -25,19 +25,22 @@ jobs:
       - name: Start Docker
         run: |
           mkdir -p config
-          if [ -f state/config.tar.gz ]; then
-            tar xzf state/config.tar.gz -C config --no-same-owner
-            rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache config/.XDG config/.ICEauthority
-            find config -name '*.lock' -delete 2>/dev/null || true
-            sudo chown -R "$UID_NUM:$GID_NUM" config
-            sudo chmod -R u+rwX config
-            FILES=$(find config -type f | wc -l)
-            echo "RESTORED ($FILES files, ownership fixed)" > /tmp/status.txt
-            echo "### Restored $FILES files from previous run" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "FRESH (no cache)" > /tmp/status.txt
-            echo "### No saved state yet - starting fresh" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "=== RUN ${{ github.run_id }} ==="
+            if [ -f state/config.tar.gz ]; then
+              tar xzf state/config.tar.gz -C config --no-same-owner
+              rm -rf config/.dbus config/.pulse config/.config/pulse config/.cache config/.XDG config/.ICEauthority
+              find config -name '*.lock' -delete 2>/dev/null || true
+              sudo chown -R "$UID_NUM:$GID_NUM" config
+              sudo chmod -R u+rwX config
+              FILES=$(find config -type f | wc -l)
+              echo "STATE: RESTORED ($FILES files, ownership fixed)"
+              echo "MARKER-FROM-PREVIOUS-RUN: $(cat config/.session-marker 2>/dev/null || echo NONE)"
+            else
+              echo "STATE: FRESH (no cache)"
+              echo "MARKER-FROM-PREVIOUS-RUN: NONE"
+            fi
+          } | tee /tmp/status.txt
           docker run -d \
             --name webtop \
             --network host \
@@ -50,8 +53,9 @@ jobs:
             -e PGID=$GID_NUM \
             -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
             ghcr.io/linuxserver/webtop
-          sleep 75
-          docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "DESKTOP OK" || echo "DESKTOP MISSING"' || true
+          sleep 80
+          HEALTH=$(docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "XFCE-SESSION: RUNNING" || echo "XFCE-SESSION: DEAD"' 2>/dev/null || echo "XFCE-SESSION: UNKNOWN")
+          echo "$HEALTH" | tee -a /tmp/status.txt
 
       - name: Reinstall saved packages
         run: |
@@ -80,10 +84,8 @@ jobs:
           done
           [ -z "$URL" ] && { echo "::error::no tunnel URL"; exit 1; }
           echo "$URL" > /tmp/url.txt
-          cat /tmp/status.txt >> /tmp/url.txt
-          echo "### Linux desktop is live" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "$URL" >> "$GITHUB_STEP_SUMMARY"
+          tail -n +2 /tmp/status.txt >> /tmp/url.txt
+          { cat /tmp/status.txt; echo "$URL"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload URL artifact
         uses: actions/upload-artifact@v4
@@ -97,6 +99,7 @@ jobs:
         run: |
           sleep 900
           mkdir -p state
+          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} checkpoint-A $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
           docker exec webtop tar czf /tmp/cfg.tar.gz -C /config .
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
@@ -120,6 +123,7 @@ jobs:
       - name: Snapshot C
         if: always()
         run: |
+          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} checkpoint-C $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
           docker exec webtop tar czf /tmp/cfg.tar.gz -C /config .
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
@@ -136,6 +140,7 @@ jobs:
       - name: Final snapshot
         if: always()
         run: |
+          docker exec webtop sh -c "echo 'MARKER: run-${{ github.run_id }} final $(date -u +%Y%m%dT%H%M%SZ)' > /config/.session-marker" || true
           docker exec webtop tar czf /tmp/cfg.tar.gz -C /config .
           docker cp webtop:/tmp/cfg.tar.gz state/config.tar.gz || true
           docker exec webtop sh -c 'apk info > /tmp/pkgs.txt 2>/dev/null || true'
