@@ -18,7 +18,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: state
-          key: webtop-state-${{ github.run_id }}-x
+          key: webtop-state-38758472157-a
           restore-keys: |
             webtop-state-
 
