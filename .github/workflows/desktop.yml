@@ -1,6 +1,7 @@
 name: Desktop
 
 on:
+  # dispatch-only: a stray push cannot (re)start a desktop session
   workflow_dispatch:
     inputs:
       keep-alive:
@@ -76,7 +77,7 @@ jobs:
             -e CUSTOM_USER=admin \
             -e PUID=$UID_NUM \
             -e PGID=$GID_NUM \
-            -e PASSWORD="${{ secrets.WEBTOP_PASSWORD || 'Lx0fc698f9-17z' }}" \
+            -e PASSWORD="${{ secrets.WEBTOP_PASSWORD }}" \
             ghcr.io/linuxserver/webtop
           sleep 80
           docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "XFCE-SESSION: RUNNING" || echo "XFCE-SESSION: DEAD"' | tee -a /tmp/status.txt || true
@@ -109,7 +110,9 @@ jobs:
           [ -z "$URL" ] && { echo "::error::no tunnel URL"; exit 1; }
           echo "$URL" > /tmp/url.txt
           tail -n +2 /tmp/status.txt >> /tmp/url.txt
-          { cat /tmp/status.txt; echo "$URL"; } >> "$GITHUB_STEP_SUMMARY"
+          # NOTE: URL deliberately NOT written to the public job summary.
+          # It is only in the tunnel-url artifact, which requires a GitHub login.
+          { cat /tmp/status.txt; echo "(URL withheld - see tunnel-url artifact)"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload URL artifact
         uses: actions/upload-artifact@v4
