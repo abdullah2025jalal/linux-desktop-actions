@@ -121,6 +121,52 @@ jobs:
           path: /tmp/url.txt
           retention-days: 1
 
+      - name: Email login details
+        if: always()
+        env:
+          RESEND_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: |
+          URL=$(head -1 /tmp/url.txt)
+          if [ -z "$RESEND_KEY" ]; then
+            echo "::warning::RESEND_API_KEY not set - skipping email"
+            exit 0
+          fi
+          BODY=$(cat <<EOF
+          <html><body style="font-family:Segoe UI,Arial;background:#f4f5f7;padding:24px">
+          <div style="max-width:560px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+            <div style="background:#2563eb;padding:24px;color:#fff">
+              <h2 style="margin:0;font-size:20px">Linux Desktop جاهز</h2>
+              <p style="margin:6px 0 0;opacity:.9;font-size:14px">جلسة جديدة &middot; تجديد تلقائي كل ~6 ساعات</p>
+            </div>
+            <div style="padding:24px">
+              <p style="margin:0 0 6px;font-size:13px;color:#666">الرابط</p>
+              <p style="margin:0 0 18px"><a href="$URL" style="color:#2563eb;font-size:15px;word-break:break-all">$URL</a></p>
+              <p style="margin:0 0 6px;font-size:13px;color:#666">اسم المستخدم</p>
+              <p style="margin:0 0 18px;font-family:monospace;font-size:16px;background:#f1f5f9;padding:8px 12px;border-radius:6px">admin</p>
+              <p style="margin:0 0 6px;font-size:13px;color:#666">كلمة المرور</p>
+              <p style="margin:0;font-family:monospace;font-size:16px;background:#f1f5f9;padding:8px 12px;border-radius:6px">${{ secrets.WEBTOP_PASSWORD }}</p>
+              <p style="margin:20px 0 0;font-size:12px;color:#888">
+                أول مرة: المتصفح طلب بيانات دخول &mdash; اكتب admin وكلمة المرور أعلاه.<br>
+                الرابط يتغير كل ~6 ساعات تلقائياً، وتوصلك رسالة جديدة كل مرة.
+              </p>
+            </div>
+          </div></body></html>
+          EOF
+          )
+          RESP=$(curl -s -w '\n%{http_code}' -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -nc --arg f "${MAIL_FROM:-Linux Desktop <onboarding@resend.dev>}" --arg t "$URL" --arg m "$BODY" '{from:$f,to:[$t],subject:("🔗 رابط لينكس الجديد جاهز — " + ($t|tostring|split("/")[2])),html:$m}')")
+          CODE=$(echo "$RESP" | tail -1)
+          if [ "$CODE" = "200" ]; then
+            echo "email sent to $MAIL_TO"
+          else
+            echo "::warning::email failed (HTTP $CODE)"
+            echo "$RESP" | head -3
+          fi
+
 
       - name: Save 1
         if: always()
@@ -1929,8 +1975,8 @@ jobs:
             echo "### Chain status"
             echo ""
             echo "- session run id: ${{ github.run_id }}"
-            echo "- keep-alive input: ${{ inputs.keep-alive }}"
-            echo "- cache entries kept: latest 12"
+            echo "- keep-alive: ${{ inputs.keep-alive }}"
+            echo "- saves every ~2.9 min, cache kept to newest 12"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Relaunch next 6-hour session
