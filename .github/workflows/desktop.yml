@@ -94,6 +94,9 @@ jobs:
           docker exec webtop sh -c 'xargs apk add --no-cache < /tmp/want.txt 2>&1 | tail -5 || true'
           docker exec webtop sh -c 'cp /etc/apk/world /tmp/pkgs.txt 2>/dev/null || : > /tmp/pkgs.txt'
           docker cp webtop:/tmp/pkgs.txt state/packages.txt || true
+          # report installed packages - /etc/apk/world appends, so newest are last
+          echo "PACKAGES-TOTAL: $(docker exec webtop sh -c 'wc -l < /etc/apk/world' | tr -d ' \r')" >> /tmp/status.txt
+          echo "PACKAGES-NEWEST: $(docker exec webtop sh -c 'tail -10 /etc/apk/world | tr "\n" " "' | tr -d ' \r')" >> /tmp/status.txt
 
       - name: Install cloudflared
         run: |
