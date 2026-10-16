@@ -159,7 +159,10 @@ jobs:
                 echo "RESULT=FAILED"
               fi
             fi
-          } | tee /tmp/email-status.txt
+          } > /tmp/email-status.txt
+          # SECURITY: never tee this to stdout - the job log of a PUBLIC repo is
+          # world-readable for completed runs, which would leak the live URL.
+          grep -v '^URL=' /tmp/email-status.txt | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload email status
         if: always()
