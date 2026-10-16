@@ -4,13 +4,13 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Restore
         uses: actions/cache/restore@v4
         with:
           path: state
-          key: diag-${{ github.run_id }}
+          key: diag2-${{ github.run_id }}
           restore-keys: |
             webtop-state-
       - name: Test package persistence
@@ -18,43 +18,43 @@ jobs:
           mkdir -p config
           tar xzf state/config.tar.gz -C config --no-same-owner
           sudo chown -R 911:911 config
-          docker run -d --name t --network host --security-opt seccomp=unconfined --shm-size=1gb \
+          docker run -d --name ptst1 --network host --security-opt seccomp=unconfined --shm-size=1gb \
             -v "$PWD/config:/config" -e CUSTOM_USER=admin -e PUID=911 -e PGID=911 -e PASSWORD=x \
             ghcr.io/linuxserver/webtop >/dev/null
           sleep 70
-          echo "=== 1. what the CURRENT saved list looks like ==="
-          echo "  packages.txt lines: $(wc -l < state/packages.txt)"
-          echo "  sample raw:"; head -4 state/packages.txt | sed 's/^/    /'
+          echo "=== A. saved list (current code) ==="
+          echo "  lines: $(wc -l < state/packages.txt)"
+          echo "  raw sample:"; head -3 state/packages.txt | sed 's/^/    /'
+          echo "  my sed produces:"; sed 's/-[^\-]*$//' state/packages.txt | grep -v '^$' | head -4 | sed 's/^/    /'
           echo ""
-          echo "=== 2. names my sed produces (current code) ==="
-          sed 's/-[^\-]*$//' state/packages.txt | grep -v '^$' | head -6 | sed 's/^/    /'
+          echo "=== B. /etc/apk/world (ground truth) ==="
+          docker exec ptst1 sh -c 'test -f /etc/apk/world && { echo "  EXISTS $(wc -l < /etc/apk/world) explicit pkgs:"; head -6 /etc/apk/world | sed "s/^/    /"; } || echo "  MISSING"'
           echo ""
-          echo "=== 3. /etc/apk/world inside container (REAL truth) ==="
-          docker exec t sh -c 'test -f /etc/apk/world && { echo "  EXISTS, $(wc -l < /etc/apk/world) explicit packages:"; head -8 /etc/apk/world | sed "s/^/    /"; } || echo "  MISSING"'
-          echo ""
-          echo "=== 4. REAL TEST: install cowsay, save, restore in new container ==="
-          docker exec t apk add --no-cache cowsay >/dev/null 2>&1 && echo "  installed cowsay OK" || echo "  install FAILED"
-          docker exec t sh -c 'echo cowsay >> /etc/apk/world'
-          docker exec t sh -c 'apk info | grep -i cowsay' | sed 's/^/    apk info says: /'
-          docker exec t tar czf /tmp/c.tar.gz -C /config .
-          docker cp t:/tmp/c.tar.gz ./c2.tar.gz
-          docker exec t cat /etc/apk/world > world.txt
-          echo "  saved world.txt lines: $(wc -l < world.txt)"
-          docker rm -f t >/dev/null
-          echo "  --- now a BRAND NEW container, no trace of the first one ---"
+          echo "=== C. ROUND TRIP TEST with cowsay ==="
+          docker exec ptst1 apk add --no-cache cowsay >/dev/null 2>&1 && echo "  installed: $(docker exec ptst1 which cowsay)" || echo "  install FAILED"
+          docker exec ptst1 sh -c 'echo cowsay >> /etc/apk/world'
+          docker exec ptst1 tar czf /tmp/c.tar.gz -C /config .
+          docker cp ptst1:/tmp/c.tar.gz ./c2.tar.gz
+          docker exec ptst1 cat /etc/apk/world > world.txt
+          echo "  world.txt now: $(wc -l < world.txt) entries"
+          docker rm -f ptst1 >/dev/null
           rm -rf c3 && mkdir -p c3 && tar xzf c2.tar.gz -C c3
           sudo chown -R 911:911 c3
-          docker run -d --name t2 --network host --security-opt seccomp=unconfined --shm-size=1gb \
+          docker run -d --name ptst2 --network host --security-opt seccomp=unconfined --shm-size=1gb \
             -v "$PWD/c3:/config" -e CUSTOM_USER=admin -e PUID=911 -e PGID=911 -e PASSWORD=x \
             ghcr.io/linuxserver/webtop >/dev/null
           sleep 70
-          echo "  replay world.txt:"
-          docker cp world.txt t2:/tmp/w.txt
-          docker exec t2 sh -c 'xargs apk add --no-cache < /tmp/w.txt >/dev/null 2>&1; true'
+          docker cp world.txt ptst2:/tmp/w.txt
+          docker exec ptst2 sh -c 'xargs apk add --no-cache < /tmp/w.txt >/dev/null 2>&1 || true'
           echo ""
-          echo "  >>> IS cowsay IN THE NEW CONTAINER?"
-          if docker exec t2 which cowsay >/dev/null 2>&1; then
-            echo "  >>> YES - PROGRAM SURVIVED: $(docker exec t2 which cowsay)"
+          if docker exec ptst2 which cowsay >/dev/null 2>&1; then
+            echo "  >>> YES - PROGRAM SURVIVED: $(docker exec ptst2 which cowsay)"
+            docker exec ptst2 sh -c 'echo hello | cowsay' 2>&1 | head -3 | sed 's/^/      /'
           else
             echo "  >>> NO - PROGRAM LOST"
           fi
+          echo ""
+          echo "=== D. does the OLD sed method work? ==="
+          OLD=$(sed 's/-[^\-]*$//' state/packages.txt | grep -v '^$' | head -3 | tr '\n' ' ')
+          echo "  testing: $OLD"
+          docker exec ptst2 sh -c "apk add --no-cache $OLD 2>&1 | head -4" | sed 's/^/    /'
