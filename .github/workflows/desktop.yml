@@ -12,7 +12,8 @@ on:
 jobs:
   desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    # 330 not 360: leave a 30 minute cushion so the final steps actually run.
+    timeout-minutes: 330
     permissions:
       actions: write
       contents: read
@@ -83,6 +84,7 @@ jobs:
           docker exec webtop sh -c 'pgrep -x xfce4-session >/dev/null && echo "XFCE-SESSION: RUNNING" || echo "XFCE-SESSION: DEAD"' | tee -a /tmp/status.txt || true
 
       - name: Reinstall saved packages
+        continue-on-error: true
         run: |
           if [ ! -f state/packages.txt ]; then
             echo "no package list - fresh system"
@@ -94,9 +96,7 @@ jobs:
           docker exec webtop sh -c 'xargs apk add --no-cache < /tmp/want.txt 2>&1 | tail -5 || true'
           docker exec webtop sh -c 'cp /etc/apk/world /tmp/pkgs.txt 2>/dev/null || : > /tmp/pkgs.txt'
           docker cp webtop:/tmp/pkgs.txt state/packages.txt || true
-          # report installed packages - /etc/apk/world appends, so newest are last
           echo "PACKAGES-TOTAL: $(docker exec webtop sh -c 'wc -l < /etc/apk/world' | tr -d ' \r')" >> /tmp/status.txt
-          echo "PACKAGES-NEWEST: $(docker exec webtop sh -c 'tail -10 /etc/apk/world | tr "\n" " "' | tr -d ' \r')" >> /tmp/status.txt
 
       - name: Install cloudflared
         run: |
@@ -116,8 +116,6 @@ jobs:
           [ -z "$URL" ] && { echo "::error::no tunnel URL"; exit 1; }
           echo "$URL" > /tmp/url.txt
           tail -n +2 /tmp/status.txt >> /tmp/url.txt
-          # NOTE: URL deliberately NOT written to the public job summary.
-          # It is only in the tunnel-url artifact, which requires a GitHub login.
           { cat /tmp/status.txt; echo "(URL withheld - see tunnel-url artifact)"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload URL artifact
@@ -153,11 +151,7 @@ jobs:
                 -H "Authorization: Bearer $RESEND_KEY" -H "Content-Type: application/json" -d "$PAYLOAD")
               echo "HTTP=$CODE"
               echo "BODY=$(head -c 400 /tmp/res.json)"
-              if [ "$CODE" = "200" ]; then
-                echo "RESULT=SENT"
-              else
-                echo "RESULT=FAILED"
-              fi
+              if [ "$CODE" = "200" ]; then echo "RESULT=SENT"; else echo "RESULT=FAILED"; fi
             fi
           } > /tmp/email-status.txt
           # SECURITY: never tee this to stdout - the job log of a PUBLIC repo is
@@ -172,8 +166,10 @@ jobs:
           path: /tmp/email-status.txt
           retention-days: 7
 
+
       - name: Save 1
         if: always()
+        continue-on-error: true
         run: |
           true
           mkdir -p state
@@ -186,12 +182,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-1
 
       - name: Save 2
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -204,12 +202,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-2
 
       - name: Save 3
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -222,12 +222,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-3
 
       - name: Save 4
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -240,12 +242,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-4
 
       - name: Save 5
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -258,12 +262,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-5
 
       - name: Save 6
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -276,12 +282,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-6
 
       - name: Save 7
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -294,12 +302,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-7
 
       - name: Save 8
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -312,12 +322,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-8
 
       - name: Save 9
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -330,12 +342,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-9
 
       - name: Save 10
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -348,12 +362,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-10
 
       - name: Save 11
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -366,12 +382,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-11
 
       - name: Save 12
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -384,12 +402,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-12
 
       - name: Save 13
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -402,12 +422,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-13
 
       - name: Save 14
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -420,12 +442,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-14
 
       - name: Save 15
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -438,12 +462,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-15
 
       - name: Save 16
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -456,12 +482,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-16
 
       - name: Save 17
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -474,12 +502,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-17
 
       - name: Save 18
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -492,12 +522,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-18
 
       - name: Save 19
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -510,12 +542,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-19
 
       - name: Save 20
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -528,12 +562,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-20
 
       - name: Save 21
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -546,12 +582,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-21
 
       - name: Save 22
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -564,12 +602,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-22
 
       - name: Save 23
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -582,12 +622,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-23
 
       - name: Save 24
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -600,12 +642,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-24
 
       - name: Save 25
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -618,12 +662,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-25
 
       - name: Save 26
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -636,12 +682,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-26
 
       - name: Save 27
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -654,12 +702,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-27
 
       - name: Save 28
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -672,12 +722,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-28
 
       - name: Save 29
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -690,12 +742,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-29
 
       - name: Save 30
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -708,12 +762,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-30
 
       - name: Save 31
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -726,12 +782,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-31
 
       - name: Save 32
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -744,12 +802,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-32
 
       - name: Save 33
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -762,12 +822,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-33
 
       - name: Save 34
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -780,12 +842,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-34
 
       - name: Save 35
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -798,12 +862,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-35
 
       - name: Save 36
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -816,12 +882,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-36
 
       - name: Save 37
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -834,12 +902,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-37
 
       - name: Save 38
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -852,12 +922,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-38
 
       - name: Save 39
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -870,12 +942,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-39
 
       - name: Save 40
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -888,12 +962,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-40
 
       - name: Save 41
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -906,12 +982,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-41
 
       - name: Save 42
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -924,12 +1002,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-42
 
       - name: Save 43
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -942,12 +1022,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-43
 
       - name: Save 44
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -960,12 +1042,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-44
 
       - name: Save 45
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -978,12 +1062,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-45
 
       - name: Save 46
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -996,12 +1082,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-46
 
       - name: Save 47
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1014,12 +1102,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-47
 
       - name: Save 48
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1032,12 +1122,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-48
 
       - name: Save 49
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1050,12 +1142,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-49
 
       - name: Save 50
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1068,12 +1162,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-50
 
       - name: Save 51
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1086,12 +1182,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-51
 
       - name: Save 52
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1104,12 +1202,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-52
 
       - name: Save 53
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1122,12 +1222,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-53
 
       - name: Save 54
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1140,12 +1242,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-54
 
       - name: Save 55
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1158,12 +1262,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-55
 
       - name: Save 56
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1176,12 +1282,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-56
 
       - name: Save 57
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1194,12 +1302,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-57
 
       - name: Save 58
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1212,12 +1322,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-58
 
       - name: Save 59
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1230,12 +1342,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-59
 
       - name: Save 60
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1248,12 +1362,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-60
 
       - name: Save 61
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1266,12 +1382,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-61
 
       - name: Save 62
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1284,12 +1402,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-62
 
       - name: Save 63
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1302,12 +1422,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-63
 
       - name: Save 64
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1320,12 +1442,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-64
 
       - name: Save 65
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1338,12 +1462,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-65
 
       - name: Save 66
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1356,12 +1482,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-66
 
       - name: Save 67
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1374,12 +1502,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-67
 
       - name: Save 68
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1392,12 +1522,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-68
 
       - name: Save 69
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1410,12 +1542,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-69
 
       - name: Save 70
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1428,12 +1562,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-70
 
       - name: Save 71
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1446,12 +1582,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-71
 
       - name: Save 72
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1464,12 +1602,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-72
 
       - name: Save 73
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1482,12 +1622,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-73
 
       - name: Save 74
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1500,12 +1642,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-74
 
       - name: Save 75
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1518,12 +1662,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-75
 
       - name: Save 76
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1536,12 +1682,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-76
 
       - name: Save 77
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1554,12 +1702,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-77
 
       - name: Save 78
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1572,12 +1722,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-78
 
       - name: Save 79
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1590,12 +1742,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-79
 
       - name: Save 80
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1608,12 +1762,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-80
 
       - name: Save 81
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1626,12 +1782,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-81
 
       - name: Save 82
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1644,12 +1802,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-82
 
       - name: Save 83
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1662,12 +1822,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-83
 
       - name: Save 84
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1680,12 +1842,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-84
 
       - name: Save 85
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1698,12 +1862,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-85
 
       - name: Save 86
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1716,12 +1882,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-86
 
       - name: Save 87
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1734,12 +1902,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-87
 
       - name: Save 88
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1752,12 +1922,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-88
 
       - name: Save 89
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1770,12 +1942,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-89
 
       - name: Save 90
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1788,12 +1962,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-90
 
       - name: Save 91
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1806,12 +1982,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-91
 
       - name: Save 92
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1824,12 +2002,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-92
 
       - name: Save 93
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1842,12 +2022,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-93
 
       - name: Save 94
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1860,12 +2042,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-94
 
       - name: Save 95
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1878,12 +2062,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-95
 
       - name: Save 96
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1896,12 +2082,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-96
 
       - name: Save 97
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1914,12 +2102,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-97
 
       - name: Save 98
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1932,12 +2122,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-98
 
       - name: Save 99
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1950,12 +2142,14 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-99
 
       - name: Save 100
         if: always()
+        continue-on-error: true
         run: |
           sleep 170
           mkdir -p state
@@ -1968,6 +2162,7 @@ jobs:
           docker cp webtop:/tmp/desktop.txt state/desktop.txt || true
       - uses: actions/cache/save@v4
         if: always()
+        continue-on-error: true
         with:
           path: state
           key: webtop-state-${{ github.run_id }}-100
@@ -1981,9 +2176,10 @@ jobs:
             echo "- session run id: ${{ github.run_id }}"
             echo "- keep-alive: ${{ inputs.keep-alive }}"
             echo "- saves every ~2.9 min, cache kept to newest 12"
+            echo "- renewer dispatched in the next step"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Relaunch next 6-hour session
+      - name: Hand over to renewer
         if: ${{ always() && inputs.keep-alive != false }}
         uses: actions/github-script@v7
         with:
@@ -1991,8 +2187,8 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'desktop.yml',
+              workflow_id: 'renew.yml',
               ref: context.ref,
-              inputs: { 'keep-alive': 'true' }
+              inputs: { keep_alive: String(${{ inputs.keep-alive }}) }
             });
-            core.info('Next 6-hour session dispatched.');
+            core.info('Renewer session dispatched. This run ends here.');
