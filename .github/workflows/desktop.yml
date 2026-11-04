@@ -188,8 +188,11 @@ jobs:
             exit 1
           fi
 
+      
+
       - name: Push login details to ntfy (second channel)
         if: always()
+        continue-on-error: true
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           WEBTOP_PASSWORD: ${{ secrets.WEBTOP_PASSWORD }}
@@ -203,18 +206,18 @@ jobs:
             else
               UTC_NOW=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
               IRQ_NOW=$(date -u -d '+3 hours' '+%Y-%m-%d %H:%M:%S Baghdad')
-              MSG=$(jq -nc --arg n "$NTFY_TOPIC" --arg t 'Desktop 1 ready' \
-                --arg u "$URL" --arg p "$WEBTOP_PASSWORD" \
-                --arg utc "$UTC_NOW" --arg irq "$IRQ_NOW" \
-                '{topic:$n, title:$t, priority:"high", \
-                  message:("URL: "+$u+"\nUsername: admin\nPassword: "+$p+"\nStarted: "+$utc+"  ("+$irq+")")}')
-              CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST https://ntfy.sh \
-                -H "Content-Type: application/json" -d "$MSG")
+              MSG=$(printf 'URL: %s\nUsername: admin\nPassword: %s\nStarted: %s  (%s)' \
+                "$URL" "$WEBTOP_PASSWORD" "$UTC_NOW" "$IRQ_NOW")
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "https://ntfy.sh/$NTFY_TOPIC" \
+                -H "Title: Desktop 1 ready" -H "Priority: high" --data-binary "$MSG")
               echo "PUSH=$CODE"
-              [ "$CODE" = "200" ] || echo "::warning::ntfy push failed with HTTP $CODE"
+              if [ "$CODE" != "200" ]; then
+                echo "::warning::ntfy push did not return 200 (HTTP $CODE)"
+              fi
             fi
           } > /tmp/push-status.txt 2>&1
           grep -E '^(NTFY_HOST|NTFY_PRESENT|PUSH)' /tmp/push-status.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
 
       - name: Upload email status
         if: always()
@@ -255,7 +258,7 @@ jobs:
         # the last step. The last step never runs: the job is killed by its own
         # timeout first, which is what caused 25..52 minutes of dead time
         # between sessions and no renewal email.
-        if: ${{ inputs.keep-alive != false }}
+        if: ${{ always() && (inputs.keep-alive != 'false') }}
         uses: actions/github-script@v7
         with:
           script: |
